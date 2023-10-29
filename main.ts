@@ -1,81 +1,62 @@
+import { chargerArticleCmd } from 'commands/legifrance';
+import { Legifrance } from 'legi';
 import { App, Editor, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, Setting } from 'obsidian';
+import { PisteAuth } from 'piste';
 
 // Remember to rename these classes and interfaces!
 
 interface MyPluginSettings {
-	mySetting: string;
+	piste: {
+		clientId: string,
+		clientSecret: string
+		tokenEndpoint: string,
+		authorizationEndpoint: string,
+	},
+	georisques: {
+		basePath: string
+	},
+	legifrance: {
+		basePath: string
+	}
 }
 
 const DEFAULT_SETTINGS: MyPluginSettings = {
-	mySetting: 'default'
+	piste: {
+		clientId: "client_id",
+		clientSecret: "client_secret",
+		tokenEndpoint: "https://sandbox-oauth.piste.gouv.fr/api/oauth/token",
+		authorizationEndpoint: "https://sandbox-oauth.piste.gouv.fr/api/oauth/authorize"
+	},
+	georisques: {
+		basePath: "https://www.georisques.gouv.fr/"
+	},
+	legifrance: {
+		basePath: "http://sandbox-api.piste.gouv.fr/dila/legifrance/lf-engine-app"
+	}
 }
 
-export default class MyPlugin extends Plugin {
+export default class InspectionPlugin extends Plugin {
 	settings: MyPluginSettings;
 
+	pisteAuth: PisteAuth;
+	legifrance: Legifrance;
+
 	async onload() {
+		// Load settings
 		await this.loadSettings();
 
-		// This creates an icon in the left ribbon.
-		const ribbonIconEl = this.addRibbonIcon('dice', 'Sample Plugin', (evt: MouseEvent) => {
-			// Called when the user clicks the icon.
-			new Notice('This is a notice!');
-		});
-		// Perform additional things with the ribbon
-		ribbonIconEl.addClass('my-plugin-ribbon-class');
+		// PISTE OAuth Client to request Legifrance API
+		this.pisteAuth = new PisteAuth(this.settings.piste);
 
-		// This adds a status bar item to the bottom of the app. Does not work on mobile apps.
-		const statusBarItemEl = this.addStatusBarItem();
-		statusBarItemEl.setText('Status Bar Text');
-
+		// Legifrance service
+		this.legifrance = new Legifrance(this.pisteAuth, this.settings.legifrance);
+		
 		// This adds a simple command that can be triggered anywhere
-		this.addCommand({
-			id: 'open-sample-modal-simple',
-			name: 'Open sample modal (simple)',
-			callback: () => {
-				new SampleModal(this.app).open();
-			}
-		});
-		// This adds an editor command that can perform some operation on the current editor instance
-		this.addCommand({
-			id: 'sample-editor-command',
-			name: 'Sample editor command',
-			editorCallback: (editor: Editor, view: MarkdownView) => {
-				console.log(editor.getSelection());
-				editor.replaceSelection('Sample Editor Command');
-			}
-		});
-		// This adds a complex command that can check whether the current state of the app allows execution of the command
-		this.addCommand({
-			id: 'open-sample-modal-complex',
-			name: 'Open sample modal (complex)',
-			checkCallback: (checking: boolean) => {
-				// Conditions to check
-				const markdownView = this.app.workspace.getActiveViewOfType(MarkdownView);
-				if (markdownView) {
-					// If checking is true, we're simply "checking" if the command can be run.
-					// If checking is false, then we want to actually perform the operation.
-					if (!checking) {
-						new SampleModal(this.app).open();
-					}
-
-					// This command will only show up in Command Palette when the check function returns true
-					return true;
-				}
-			}
-		});
+		this.addCommand(chargerArticleCmd(this.legifrance));
 
 		// This adds a settings tab so the user can configure various aspects of the plugin
-		this.addSettingTab(new SampleSettingTab(this.app, this));
+		this.addSettingTab(new InspectionSettingTab(this.app, this));
 
-		// If the plugin hooks up any global DOM events (on parts of the app that doesn't belong to this plugin)
-		// Using this function will automatically remove the event listener when this plugin is disabled.
-		this.registerDomEvent(document, 'click', (evt: MouseEvent) => {
-			console.log('click', evt);
-		});
-
-		// When registering intervals, this function will automatically clear the interval when the plugin is disabled.
-		this.registerInterval(window.setInterval(() => console.log('setInterval'), 5 * 60 * 1000));
 	}
 
 	onunload() {
@@ -91,26 +72,10 @@ export default class MyPlugin extends Plugin {
 	}
 }
 
-class SampleModal extends Modal {
-	constructor(app: App) {
-		super(app);
-	}
+class InspectionSettingTab extends PluginSettingTab {
+	plugin: InspectionPlugin;
 
-	onOpen() {
-		const {contentEl} = this;
-		contentEl.setText('Woah!');
-	}
-
-	onClose() {
-		const {contentEl} = this;
-		contentEl.empty();
-	}
-}
-
-class SampleSettingTab extends PluginSettingTab {
-	plugin: MyPlugin;
-
-	constructor(app: App, plugin: MyPlugin) {
+	constructor(app: App, plugin: InspectionPlugin) {
 		super(app, plugin);
 		this.plugin = plugin;
 	}
@@ -119,16 +84,82 @@ class SampleSettingTab extends PluginSettingTab {
 		const {containerEl} = this;
 
 		containerEl.empty();
+		
+		new Setting(containerEl)
+		.setName("PISTE - Client ID")
+		.setDesc("Identifiant du client pour l'OAuth PISTE")
+		.addText(text => text
+			.setPlaceholder("")
+			.setValue(this.plugin.settings.piste.clientSecret)
+			.onChange(async(value) => {
+				this.plugin.settings.piste.clientId = value;
+				this.plugin.pisteAuth.onSettingsUpdated(this.plugin.settings.piste);
+				await this.plugin.saveSettings();
+			})
+		);
+		
+		new Setting(containerEl)
+		.setName("PISTE - Client secret")
+		.setDesc("Secret du client pour l'OAuth PISTE")
+		.addText(text => text
+			.setPlaceholder("")
+			.setValue(this.plugin.settings.piste.clientSecret)
+			.onChange(async(value) => {
+				this.plugin.settings.piste.clientSecret = value;
+				this.plugin.pisteAuth.onSettingsUpdated(this.plugin.settings.piste);
+				await this.plugin.saveSettings();
+			})
+		);
 
 		new Setting(containerEl)
-			.setName('Setting #1')
-			.setDesc('It\'s a secret')
-			.addText(text => text
-				.setPlaceholder('Enter your secret')
-				.setValue(this.plugin.settings.mySetting)
-				.onChange(async (value) => {
-					this.plugin.settings.mySetting = value;
-					await this.plugin.saveSettings();
-				}));
+		.setName("PISTE - Token endpoint")
+		.setDesc("Endpoint pour récupérer un jeton")
+		.addText(text => text
+			.setPlaceholder("")
+			.setValue(this.plugin.settings.piste.tokenEndpoint)
+			.onChange(async(value) => {
+				this.plugin.settings.piste.tokenEndpoint = value;
+				this.plugin.pisteAuth.onSettingsUpdated(this.plugin.settings.piste);
+				await this.plugin.saveSettings();
+			})
+		);
+
+		new Setting(containerEl)
+		.setName("PISTE - Authorization endpoint")
+		.setDesc("Endpoint pour l'authorization")
+		.addText(text => text
+			.setPlaceholder("")
+			.setValue(this.plugin.settings.piste.authorizationEndpoint)
+			.onChange(async(value) => {
+				this.plugin.settings.piste.authorizationEndpoint = value;
+				this.plugin.pisteAuth.onSettingsUpdated(this.plugin.settings.piste);
+				await this.plugin.saveSettings();
+			})
+		);
+
+
+		new Setting(containerEl)
+		.setName("Légifrance - Chemin de base")
+		.setDesc("Lien vers le chemin de base de l'API Légifrance.")
+		.addText(text => text
+			.setPlaceholder("")
+			.setValue(this.plugin.settings.legifrance.basePath)
+			.onChange(async(value) => {
+				this.plugin.settings.legifrance.basePath = value;
+				this.plugin.legifrance.onSettingsUpdated(this.plugin.settings.legifrance);
+				await this.plugin.saveSettings();
+			})
+		);
+		new Setting(containerEl)
+		.setName("Géorisques - Chemin de base")
+		.setDesc("Lien vers le chemin de base de l'API Géorisques.")
+		.addText(text => text
+			.setPlaceholder("")
+			.setValue(this.plugin.settings.georisques.basePath)
+			.onChange(async(value) => {
+				this.plugin.settings.georisques.basePath = value;
+				await this.plugin.saveSettings();
+			})
+		);
 	}
 }
