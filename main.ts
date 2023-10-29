@@ -19,6 +19,9 @@ interface MyPluginSettings {
 	},
 	legifrance: {
 		basePath: string
+	},
+	inspection: {
+		canvasTemplatePath: string
 	}
 }
 
@@ -34,6 +37,9 @@ const DEFAULT_SETTINGS: MyPluginSettings = {
 	},
 	legifrance: {
 		basePath: "http://sandbox-api.piste.gouv.fr/dila/legifrance/lf-engine-app"
+	},
+	inspection: {
+		canvasTemplatePath: ""
 	}
 }
 
@@ -178,6 +184,7 @@ class InspectionSettingTab extends PluginSettingTab {
 				await this.plugin.saveSettings();
 			})
 		);
+
 		new Setting(containerEl)
 		.setName("Géorisques - Chemin de base")
 		.setDesc("Lien vers le chemin de base de l'API Géorisques.")
@@ -189,5 +196,16 @@ class InspectionSettingTab extends PluginSettingTab {
 				await this.plugin.saveSettings();
 			})
 		);
+
+		new Setting(containerEl)
+		.setName("Inspection - Canevas")
+		.setDesc("Modèle de canevas d'inspection")
+		.addText(text => text
+			.setPlaceholder("")
+			.setValue(this.plugin.settings.inspection.canvasTemplatePath)
+			.onChange(async(value) => {
+				this.plugin.settings.inspection.canvasTemplatePath = value;
+				await this.plugin.saveSettings();
+			}))
 	}
 }
