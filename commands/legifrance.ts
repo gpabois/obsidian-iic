@@ -1,4 +1,5 @@
 import { Legifrance } from "legi";
+import { NodeHtmlMarkdown, NodeHtmlMarkdownOptions } from 'node-html-markdown'
 import { Command, Editor, MarkdownView } from "obsidian";
 
 export function chargerArticleCmd(lg: Legifrance) : Command {
@@ -8,9 +9,15 @@ export function chargerArticleCmd(lg: Legifrance) : Command {
         editorCallback: async (editor: Editor, view: MarkdownView) => {
             try {
                 const url = editor.getSelection();
-                console.log("IIC - Charge l'article dont l'url est " + url);
                 const article = await lg.getArticleFromUrl(url);
-                editor.replaceSelection(JSON.stringify(article));
+                const block = `
+# ${article?.textTitles?.at(0)?.titreLong}
+## Article ${article?.num}
+[source:: ${article?.textTitles?.at(0)?.nature}]
+[date:: ${article?.dateDebut}]
+${NodeHtmlMarkdown.translate(article?.texteHtml!)}
+                `
+                editor.replaceRange(block, editor.getCursor());
             } catch(err) {
                 editor.replaceRange(err, editor.getCursor());
                 console.error(err);

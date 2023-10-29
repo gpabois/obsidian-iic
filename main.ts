@@ -1,6 +1,8 @@
+import { créerAiot } from 'aiot';
 import { chargerArticleCmd } from 'commands/legifrance';
+import { créerInspection } from 'inspection';
 import { Legifrance } from 'legi';
-import { App, Editor, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, Setting } from 'obsidian';
+import { App, Editor, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, Setting, TFolder } from 'obsidian';
 import { PisteAuth } from 'piste';
 
 // Remember to rename these classes and interfaces!
@@ -53,9 +55,35 @@ export default class InspectionPlugin extends Plugin {
 		
 		// This adds a simple command that can be triggered anywhere
 		this.addCommand(chargerArticleCmd(this.legifrance));
+		
+		this.registerEvent(
+			this.app.workspace.on("file-menu", (menu, file) => {
+				menu.addItem((item) => {
+					item
+					.setSection("iic")
+					.setTitle("Nouvel AIOT")
+					.setIcon("document")
+					.onClick(async() => {
+						await créerAiot(file as TFolder);
+					});
+				});
+
+				menu.addItem((item) => {
+					item
+					.setSection("iic")
+					.setTitle("Nouvelle inspection")
+					.setIcon("document")
+					.onClick(async() => {
+						await créerInspection(file as TFolder);
+					});
+				});
+			})
+		)
 
 		// This adds a settings tab so the user can configure various aspects of the plugin
 		this.addSettingTab(new InspectionSettingTab(this.app, this));
+
+		this
 
 	}
 
