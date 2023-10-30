@@ -1,5 +1,7 @@
 
-import { Issuer, Client, TokenSet} from 'openid-client';
+import { Issuer, Client, TokenSet, custom} from 'openid-client';
+import {HttpsProxyAgent} from 'hpagent';
+import axios from 'axios';
 
 export interface PisteAuthConfiguration {
     clientId: string,
@@ -20,23 +22,26 @@ const pisteIssuer = new Issuer({
 export class PisteAuth {
     client: Client
     currentTokenSet: TokenSet | null;
+    cfg: PisteAuthConfiguration;
 
-    constructor(cfg: PisteAuthConfiguration) {
+    constructor(cfg: PisteAuthConfiguration) {    
         this.onSettingsUpdated(cfg);
     }
 
     onSettingsUpdated(cfg: PisteAuthConfiguration) {
         this.currentTokenSet = null;
-        const issuer = new Issuer({
-            issuer: "PISTE",
-            token_endpoint: cfg.tokenEndpoint,
-            authorization_endpoint: cfg.authorizationEndpoint
+        this.cfg = cfg;    
+    }
+
+    async requestToken(): Promise<TokenSet> {
+        const resp = await axios.post(this.cfg.tokenEndpoint, `grant_type=client_credentials&client_id=${this.cfg.clientId}&client_secret=${this.cfg.clientSecret}&scope=openid`, {
+            headers: {
+                "Accept": "application/json",
+                "Content-Type": "application/x-www-form-urlencoded"
+            }
         });
 
-        this.client = new issuer.Client({
-            client_id: cfg.clientId,
-            client_secret: cfg.clientSecret
-        });      
+        return new TokenSet(resp.data);
     }
 
     getTokenAccessor(): (name?: string, scopes?: string[]) => Promise<string> {
@@ -52,12 +57,13 @@ export class PisteAuth {
      * @returns 
      */
     async getToken(name?: string, scopes?: string[]): Promise<string> {
+        
         if(this.currentTokenSet == null) {
-            this.currentTokenSet = await this.client.grant({grant_type: "client_credentials"});
+            this.currentTokenSet = await this.requestToken()
         }
 
         if(this.currentTokenSet.expired()) {
-            this.currentTokenSet = await this.client.grant({grant_type: "client_credentials"});
+            this.currentTokenSet = await this.requestToken();
         }
 
         return this.currentTokenSet.access_token!;

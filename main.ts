@@ -1,8 +1,8 @@
-import { créerAiot } from 'aiot';
+import { Georisques } from 'aiot';
+import { chargerArticleEnTantQuePointDeControleCmd, nouveauPointDeControleCmd, syncAIOTAvecGéorisquesCmd } from 'commands/inspection';
 import { chargerArticleCmd } from 'commands/legifrance';
-import { créerInspection } from 'inspection';
 import { Legifrance } from 'legi';
-import { App, Editor, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, Setting, TFolder } from 'obsidian';
+import { App, Plugin, PluginSettingTab, Setting, TFolder } from 'obsidian';
 import { PisteAuth } from 'piste';
 
 // Remember to rename these classes and interfaces!
@@ -48,6 +48,7 @@ export default class InspectionPlugin extends Plugin {
 
 	pisteAuth: PisteAuth;
 	legifrance: Legifrance;
+	georisques: Georisques;
 
 	async onload() {
 		// Load settings
@@ -59,8 +60,13 @@ export default class InspectionPlugin extends Plugin {
 		// Legifrance service
 		this.legifrance = new Legifrance(this.pisteAuth, this.settings.legifrance);
 		
-		// This adds a simple command that can be triggered anywhere
+		this.georisques = new Georisques(this.settings.georisques);
+
+		// Ajoute les commandes
 		this.addCommand(chargerArticleCmd(this.legifrance));
+		this.addCommand(chargerArticleEnTantQuePointDeControleCmd(this.legifrance));
+		this.addCommand(nouveauPointDeControleCmd());
+		this.addCommand(syncAIOTAvecGéorisquesCmd(this.georisques));
 		
 		this.registerEvent(
 			this.app.workspace.on("file-menu", (menu, file) => {
@@ -70,17 +76,16 @@ export default class InspectionPlugin extends Plugin {
 					.setTitle("Nouvel AIOT")
 					.setIcon("document")
 					.onClick(async() => {
-						await créerAiot(file as TFolder);
+						//await créerAiot(file as TFolder);
 					});
-				});
-
+				});	
 				menu.addItem((item) => {
 					item
 					.setSection("iic")
 					.setTitle("Nouvelle inspection")
 					.setIcon("document")
 					.onClick(async() => {
-						await créerInspection(file as TFolder);
+						//await créerInspection(file as TFolder);
 					});
 				});
 			})
@@ -124,7 +129,7 @@ class InspectionSettingTab extends PluginSettingTab {
 		.setDesc("Identifiant du client pour l'OAuth PISTE")
 		.addText(text => text
 			.setPlaceholder("")
-			.setValue(this.plugin.settings.piste.clientSecret)
+			.setValue(this.plugin.settings.piste.clientId)
 			.onChange(async(value) => {
 				this.plugin.settings.piste.clientId = value;
 				this.plugin.pisteAuth.onSettingsUpdated(this.plugin.settings.piste);
@@ -193,6 +198,7 @@ class InspectionSettingTab extends PluginSettingTab {
 			.setValue(this.plugin.settings.georisques.basePath)
 			.onChange(async(value) => {
 				this.plugin.settings.georisques.basePath = value;
+				this.plugin.georisques.onSettingsUpdated(this.plugin.settings.georisques);
 				await this.plugin.saveSettings();
 			})
 		);

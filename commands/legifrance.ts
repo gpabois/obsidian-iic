@@ -10,6 +10,7 @@ export function chargerArticleCmd(lg: Legifrance) : Command {
             try {
                 const url = editor.getSelection();
                 const article = await lg.getArticleFromUrl(url);
+                console.log(article);
                 const block = `
 # ${article?.textTitles?.at(0)?.titreLong}
 ## Article ${article?.num}
@@ -19,8 +20,8 @@ ${NodeHtmlMarkdown.translate(article?.texteHtml!)}
                 `
                 editor.replaceRange(block, editor.getCursor());
             } catch(err) {
-                editor.replaceRange(err, editor.getCursor());
                 console.error(err);
+                alert(err);
             }
 
         }
